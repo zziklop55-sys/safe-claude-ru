@@ -1,113 +1,93 @@
 # safe-claude-ru
 
-Claude и ИИ-инструменты из России **без утечки настоящего IP** + настройка **Ubuntu 24.04** «под ключ»: YouTube и Discord без VPN, лёгкий красивый рабочий стол для старого ноутбука. Kill-switch для Linux и Windows.
+**Claude и Claude Code из России без утечки настоящего IP.** Linux и Windows.
 
-Проверено на HP ProBook 4540s (Core i5 3-го поколения, 8 ГБ, Intel HD 4000) — на таком железе всё летает.
+![Linux](https://img.shields.io/badge/Linux-nftables-FCC624) ![Windows](https://img.shields.io/badge/Windows-Firewall-0078D6) ![License](https://img.shields.io/badge/license-MIT-blue)
 
-![Sway](https://img.shields.io/badge/WM-Sway-5F18B1) ![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04-E95420) ![License](https://img.shields.io/badge/license-MIT-blue)
+## Зачем
 
-## Что внутри
+Ты ходишь в Claude через VPN или прокси. Но достаточно один раз забыть его включить, или программа пойдёт в обход прокси — и Anthropic увидит твой российский IP. А это прямой путь к бану аккаунта.
 
-| Модуль | Что делает |
+Этот репозиторий делает так, что **напрямую до Claude достучаться физически нельзя**:
+
+```
+Claude Code, браузер с прокси ──► 127.0.0.1:10808 (VPN-клиент) ──► VPN-сервер ──► Claude ✔
+Всё остальное к Claude напрямую ─────────────────────────────────────────────────► ✖ блок
+```
+
+| Что | Как |
 |---|---|
-| `base` | обновления, утилиты (`btop`, `ripgrep`, `jq`…), **zram** (сжатая подкачка), **файрвол** (SSH только из домашней сети), отключение лишнего при загрузке |
-| `zapret` | [zapret2](https://github.com/bol-van/zapret2) — обход замедления YouTube, Discord и др. **без VPN**, режим autohostlist (сам находит заблокированные сайты) |
-| `sway` | [Sway](https://swaywm.org) — тайловый рабочий стол в духе Hyprland, но лёгкий. Waybar, Wofi, Kitty, Mako, тёмно-фиолетовая тема, шрифт FantasqueSansM Nerd Font |
-| `killswitch` | **Claude только через прокси**: прямые подключения к Claude/Anthropic блокируются на уровне системы (nftables), Claude Code и его обновления идут через прокси |
-| `firefox` | отдельный профиль Firefox, который ходит **только через прокси** (без прокси — нет интернета, WebRTC выключен) |
-| `dev` | Python, Node.js 22, VS Code |
-| `osint` | `nmap`, `whois`, `dig`, `exiftool`, `sherlock`, `maigret`, `holehe` |
-| `wifi-ath9k` | фикс постоянных обрывов Wi-Fi на старых картах Atheros |
+| **Kill-switch** | правило файрвола (Linux — nftables, Windows — Windows Firewall) запрещает любые прямые подключения к серверам Claude/Anthropic |
+| **Claude Code** | весь его трафик — запросы, **обновления**, телеметрия — идёт через прокси (`~/.claude/settings.json`) |
+| **Браузер** (Linux, по желанию) | отдельный профиль Firefox, который без прокси не открывает вообще ничего |
 
-Плюс:
-- [`windows/claude-killswitch.ps1`](windows/claude-killswitch.ps1) — тот же kill-switch для Windows;
-- [`docs/linux-cheatsheet.md`](docs/linux-cheatsheet.md) — шпаргалка «Linux для тех, кто привык к Windows»: папки, команды, права, горячие клавиши.
+VPN-клиенту исключения не нужны: он подключается к **своему** серверу, а не к адресам Claude, поэтому правило его не задевает.
+
+## Что нужно
+
+VPN-клиент с **локальным прокси** — например, [Happ](https://github.com/Happ-proxy/happ-desktop), v2rayN, Nekoray. В Happ порт `10808` по умолчанию и он **смешанный** (SOCKS5 + HTTP) — это важно, см. «Грабли».
+
+Режим VPN-клиента: **«только прокси»** — TUN и «системный прокси» выключены. Тогда через VPN идут только те программы, которым ты его прописал, а всё остальное работает как обычно.
 
 ## Установка
 
+### Linux (Ubuntu / Debian / любой с nftables и systemd)
+
 ```bash
-sudo apt install -y git
 git clone https://github.com/zziklop55-sys/safe-claude-ru.git
-cd safe-claude-ru
-./install.sh
+cd safe-claude-ru/linux
+./install.sh                 # kill-switch + прокси для Claude Code (поставит его, если нет)
+./install.sh firefox         # по желанию: Firefox «только через прокси» для claude.ai
 ```
 
-Скрипт спросит про каждый модуль. Можно ставить выборочно:
+Другой порт прокси: `PROXY_PORT=2080 ./install.sh`. Удалить kill-switch: `./install.sh remove`.
 
-```bash
-./install.sh base zapret sway
+### Windows
+
+PowerShell **от имени администратора**:
+
+```powershell
+git clone https://github.com/zziklop55-sys/safe-claude-ru.git
+cd safe-claude-ru\windows
+powershell -ExecutionPolicy Bypass -File .\claude-killswitch.ps1
 ```
 
-После модуля `sway`: выйди из системы → на экране входа нажми ⚙️ внизу справа → выбери **Sway**. GNOME остаётся, можно переключаться обратно.
-
-## Горячие клавиши Sway
-
-| Клавиши | Действие |
-|---|---|
-| `Win+Enter` | терминал |
-| `Win+Backspace` | плавающий терминал с fastfetch |
-| `Win+D` | меню программ |
-| `Win+Q` | закрыть окно |
-| `Win+1…9` | рабочие столы |
-| `Win+Shift+1…9` | перенести окно на рабочий стол |
-| `Alt+Tab` | следующее окно |
-| `Win+F` | на весь экран |
-| `Win+Space` | плавающее окно ↔ сетка |
-| `Win+Shift+S` | скриншот области (в буфер) |
-| `Alt+Shift` | раскладка EN/RU |
-| `Win+L` | блокировка |
-| `Win+Shift+C` | перечитать конфиг |
-
-Полный список — в [шпаргалке](docs/linux-cheatsheet.md) (раздел 11) и в `~/.config/sway/config`.
-
-**Обои:** положи картинку в `~/.config/sway/wallpaper.jpg` и раскомментируй строку `output * bg …` в конфиге.
-
-## Схема «VPN только там, где нужен»
-
-```
-Обычный браузер, YouTube, Discord ──► zapret2 ──► напрямую (твой IP, но без блокировок)
-Firefox «прокси», Telegram, Claude ──► 127.0.0.1:10808 (VPN-клиент) ──► VPN-сервер за границей
-Claude напрямую ─────────────────────► ✖ заблокировано kill-switch'ем
-```
-
-VPN-клиент (например, [Happ](https://github.com/Happ-proxy/happ-desktop)) нужно включить в режиме **«только прокси»**: TUN и «системный прокси» **выключены**, локальный порт `10808`. Тогда VPN используют только те программы, которым ты его прописал.
-
-- **Telegram**: Настройки → Продвинутые → Тип соединения → SOCKS5, `127.0.0.1`, порт `10808`.
-- **Claude Code**: модуль `killswitch` сам пропишет прокси в `~/.claude/settings.json`.
-- **Firefox через прокси**: модуль `firefox`, запуск командой `ffp`. Поставь в двух профилях разные темы — не перепутаешь.
-
-## ⚠️ Грабли, на которые мы наступили
-
-1. **zapret2 ломает VPN с маскировкой (VLESS Reality).** Режим autohostlist видит, что «сайт» (на самом деле VPN-сервер, маскирующийся под `dl.google.com` и т.п.) плохо отвечает, и начинает его «пробивать» — VPN перестаёт работать. Решение: впиши **SNI и IP своего VPN-сервера** в `/opt/zapret2/ipset/zapret-hosts-user-exclude.txt`, удали их из `zapret-hosts-auto.txt` и перезапусти: `sudo systemctl restart zapret2`.
-2. **Claude Code обновляется не с серверов Anthropic.** Обновления идут с `downloads.claude.ai` → это Google Cloud (`35.190.46.17`). Если блокировать только сеть Anthropic, обновление пойдёт напрямую и засветит IP. Kill-switch здесь блокирует и этот адрес.
-3. **Нативный установщик Claude Code не понимает `socks5h://`** и зависает на шаге `install`. Используй HTTP-прокси: `HTTPS_PROXY=http://127.0.0.1:10808` (у Happ порт смешанный — SOCKS и HTTP одновременно).
-4. **ZapretGUI на Windows** умеет «разблокировать» сервисы через файл `hosts`, отправляя Claude/Gemini/ChatGPT и др. на сторонние серверы («XBOX DNS»). Хозяин этих серверов видит, куда ты ходишь. Если не нужно — выключи в его вкладке hosts.
-5. **Старые Wi-Fi Atheros (AR9565 и др.)** под Linux постоянно теряют роутер (`BEACON-LOSS`). Модуль `wifi-ath9k` + в роутере **ширина канала 20 МГц** и канал 1/6/11. Лучше всего — заменить карту на Intel AC 7260 (~500 ₽).
-6. **Большие файлы по SSH через слабый Wi-Fi** рвутся. Режь на куски: `split -b 1M файл part_` → `scp` с повторами → `cat part_* > файл`. Или флешка.
+Другой порт: `-ProxyPort 2080`. Удалить: `-Remove`.
 
 ## Проверка
 
 ```bash
-systemctl status zapret2 claude-killswitch         # обе службы active
-curl -s -m 6 https://claude.ai >/dev/null || echo "Claude напрямую заблокирован ✔"
-curl -s -x http://127.0.0.1:10808 https://ipinfo.io/ip  # IP VPN-сервера
-curl -s https://ipinfo.io/ip                          # твой обычный IP
+# Linux
+curl -s -m 6 https://claude.ai >/dev/null || echo "напрямую заблокирован ✔"
+curl -s -x http://127.0.0.1:10808 https://claude.ai/cdn-cgi/trace | grep ip=   # какой IP видит Claude
 ```
 
-## Удаление
+```powershell
+# Windows
+curl.exe -s -m 6 --noproxy * https://claude.ai ; if ($LASTEXITCODE) { "напрямую заблокирован ✔" }
+curl.exe -s -x http://127.0.0.1:10808 https://claude.ai/cdn-cgi/trace | Select-String ip=
+```
+
+Во второй строке должен быть IP твоего VPN-сервера, а не домашний.
+
+## ⚠️ Грабли, на которые мы наступили
+
+1. **Claude Code обновляется не с серверов Anthropic.** Обновления идут с `downloads.claude.ai` — это Google Cloud (`35.190.46.17`), а не сеть Anthropic. Если блокировать только `160.79.104.0/21`, обновление пойдёт напрямую и засветит IP. Здесь заблокированы оба.
+2. **Установщик Claude Code не понимает `socks5h://`.** С `HTTPS_PROXY=socks5h://…` он скачивает файл и зависает на шаге `install`, а если его прервать — удаляет скачанное. Нужен **HTTP-прокси**: `HTTPS_PROXY=http://127.0.0.1:10808`. У Happ порт смешанный, так что подходит тот же 10808.
+3. **zapret ломает VPN с маскировкой (VLESS Reality).** Если одновременно работает zapret/zapret2 в режиме autohostlist — он может принять твой VPN-сервер (маскирующийся под `dl.google.com` и т.п.) за заблокированный сайт и начать его «пробивать». VPN перестаёт работать. Решение: добавь SNI и IP своего VPN-сервера в исключения zapret.
+4. **ZapretGUI (Windows) и «XBOX DNS».** В ZapretGUI есть разблокировка через файл `hosts`: Claude, ChatGPT, Gemini и десятки сервисов отправляются на сторонние серверы. Хозяин этих серверов видит, куда и с какого IP ты ходишь. Если пользуешься прокси — выключи это во вкладке hosts ZapretGUI.
+5. **TUN-режим VPN-клиента обходит kill-switch.** При включённом TUN весь трафик и так уходит в VPN, и правило файрвола его не видит — утечки нет. Но тогда через VPN ходит весь компьютер; режим «только прокси» удобнее.
+
+## Если Anthropic сменит адреса
+
+Kill-switch проверен на адресах ноября 2026. Проверить актуальные:
 
 ```bash
-sudo systemctl disable --now zapret2 claude-killswitch
-sudo rm -rf /opt/zapret2 /etc/claude-killswitch.nft /etc/systemd/system/{zapret2,claude-killswitch}.service
-# конфиги Sway: старые лежат рядом как ~/.config/<имя>.bak-<время>
+getent ahostsv4 claude.ai api.anthropic.com downloads.claude.ai
 ```
 
-## Дисклеймер
+Если появились новые — обнови `linux/claude-killswitch.nft` и `windows/claude-killswitch.ps1` (или открой issue).
 
-Проект — для личного использования и обучения. zapret2 и VPN используй в рамках законодательства своей страны. OSINT-инструменты — только для своих аккаунтов, открытых данных и учебных задач. Kill-switch проверен на адресах ноября 2026 — если Anthropic сменит IP, обнови `system/claude-killswitch.nft` (`getent ahostsv4 claude.ai downloads.claude.ai`).
+## Лицензия
 
-## Благодарности
-
-- [bol-van/zapret2](https://github.com/bol-van/zapret2)
-- [JaKooLit/Hyprland-Dots](https://github.com/JaKooLit/Hyprland-Dots) — вдохновение для оформления
-- [ryanoasis/nerd-fonts](https://github.com/ryanoasis/nerd-fonts), [fastfetch](https://github.com/fastfetch-cli/fastfetch)
+MIT

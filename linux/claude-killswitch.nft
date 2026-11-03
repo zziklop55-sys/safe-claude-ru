@@ -1,4 +1,4 @@
-# Kill-switch для Claude / Anthropic.
+# safe-claude-ru: kill-switch для Claude / Anthropic.
 # Прямые подключения к Claude через Wi-Fi (wl*) и кабель (en*) запрещены.
 # Работать с Claude можно только через прокси/VPN: трафик VPN-клиента идёт
 # на ваш VPN-сервер, а не на адреса ниже, поэтому правило его не задевает.
