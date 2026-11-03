@@ -1,0 +1,6 @@
+#!/bin/sh
+# Открыть ссылку в Firefox-профиле «только через прокси» (создаётся: ./install.sh firefox).
+for base in "$HOME/snap/firefox/common/.mozilla/firefox" "$HOME/.mozilla/firefox"; do
+    [ -d "$base/claude-proxy.profile" ] && exec firefox --profile "$base/claude-proxy.profile" "$@" >/dev/null 2>&1
+done
+echo "Нет профиля Firefox «через прокси». Создай: ./install.sh firefox" >&2; exit 1

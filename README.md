@@ -19,7 +19,8 @@ Claude Code, браузер с прокси ──► 127.0.0.1:10808 (VPN-кл�
 |---|---|
 | **Kill-switch** | правило файрвола (Linux — nftables, Windows — Windows Firewall) запрещает любые прямые подключения к серверам Claude/Anthropic |
 | **Claude Code** | весь его трафик — запросы, **обновления**, телеметрия — идёт через прокси (`~/.claude/settings.json`) |
-| **Браузер** (Linux, по желанию) | отдельный профиль Firefox, который без прокси не открывает вообще ничего |
+| **Браузер** (Linux, по желанию) | отдельный профиль Firefox, который без прокси не открывает вообще ничего; в нём же открывается вход в Claude Code |
+| **Жёсткий режим** (Linux, по желанию) | `proxyonly <программа>` — программа целиком (Codex, VS Code…) видит интернет только через прокси |
 
 VPN-клиенту исключения не нужны: он подключается к **своему** серверу, а не к адресам Claude, поэтому правило его не задевает.
 
@@ -40,7 +41,33 @@ cd safe-claude-ru/linux
 ./install.sh firefox         # по желанию: Firefox «только через прокси» для claude.ai
 ```
 
-Другой порт прокси: `PROXY_PORT=2080 ./install.sh`. Удалить kill-switch: `./install.sh remove`.
+Другой порт прокси: `PROXY_PORT=2080 ./install.sh`. Удалить всё: `./install.sh remove`.
+
+### Жёсткий режим `proxyonly` (Linux)
+
+Kill-switch защищает только адреса Claude. А если ты хочешь, чтобы **программа целиком** — Codex, VS Code, IDE на Electron — физически не могла выйти в интернет мимо прокси:
+
+```bash
+./install.sh proxyonly          # команда proxyonly
+./install.sh codex              # Codex CLI всегда запускается через proxyonly
+
+proxyonly code                  # любая программа: только через прокси
+proxyonly firefox
+```
+
+Как устроено:
+
+```
+proxyonly <программа>
+  └─ systemd scope в proxyonly.slice  (своя cgroup)
+       └─ nftables: для этой cgroup разрешён только 127.0.0.1 (локальный прокси),
+                    всё остальное — reject
+       └─ отфильтрованный D-Bus (xdg-dbus-proxy): без доступа к systemd,
+          чтобы Chromium/Electron не смогли «выпрыгнуть» из cgroup
+       └─ HTTPS_PROXY / ALL_PROXY / BROWSER уже прописаны
+```
+
+Проверка: `proxyonly curl --noproxy '*' https://ipinfo.io` — должно упасть; `proxyonly curl https://ipinfo.io` — IP VPN-сервера.
 
 ### Windows
 
@@ -76,7 +103,11 @@ curl.exe -s -x http://127.0.0.1:10808 https://claude.ai/cdn-cgi/trace | Select-S
 2. **Установщик Claude Code не понимает `socks5h://`.** С `HTTPS_PROXY=socks5h://…` он скачивает файл и зависает на шаге `install`, а если его прервать — удаляет скачанное. Нужен **HTTP-прокси**: `HTTPS_PROXY=http://127.0.0.1:10808`. У Happ порт смешанный, так что подходит тот же 10808.
 3. **zapret ломает VPN с маскировкой (VLESS Reality).** Если одновременно работает zapret/zapret2 в режиме autohostlist — он может принять твой VPN-сервер (маскирующийся под `dl.google.com` и т.п.) за заблокированный сайт и начать его «пробивать». VPN перестаёт работать. Решение: добавь SNI и IP своего VPN-сервера в исключения zapret.
 4. **ZapretGUI (Windows) и «XBOX DNS».** В ZapretGUI есть разблокировка через файл `hosts`: Claude, ChatGPT, Gemini и десятки сервисов отправляются на сторонние серверы. Хозяин этих серверов видит, куда и с какого IP ты ходишь. Если пользуешься прокси — выключи это во вкладке hosts ZapretGUI.
-5. **TUN-режим VPN-клиента обходит kill-switch.** При включённом TUN весь трафик и так уходит в VPN, и правило файрвола его не видит — утечки нет. Но тогда через VPN ходит весь компьютер; режим «только прокси» удобнее.
+5. **Вход в Claude Code / Codex открывает ОБЫЧНЫЙ браузер.** Тот ходит напрямую — с kill-switch страница просто не загрузится, без него — засветишь IP. Решение: `BROWSER` в `~/.claude/settings.json` указывает на `ffp-open` (Firefox «только через прокси»); `./install.sh claude-code` делает это сам. Если браузер не открылся — Claude Code печатает ссылку, вставь её в прокси-Firefox руками.
+6. **Firefox «только через прокси» ломает OAuth-вход.** После входа Google/Anthropic возвращают тебя на `http://localhost:ПОРТ/callback`. Если прокси перехватывает и localhost (`allow_hijacking_localhost=true`), прокси ищет этот «localhost» на VPN-сервере → `NS_ERROR_NET_EMPTY_RESPONSE`. localhost должен идти напрямую — это не утечка, это сам компьютер.
+7. **Chromium/Electron сбегают из песочницы.** Программа на Chromium (VS Code, Cursor, IDE на Electron) при старте сама переносит главный процесс в свою cgroup `app-org.chromium.Chromium-*.scope` через D-Bus-вызов `StartTransientUnit` к systemd. Правило файрвола для твоей cgroup её больше не касается. Переименование scope в `app-*` не помогает. Помогает только отрезать программе systemd на D-Bus (`xdg-dbus-proxy --filter`), оставив связку ключей, порталы и уведомления.
+8. **Внутри песочницы не открываются ссылки.** `xdg-open` в Sway/без DE пишет `no method available`, а snap-Firefox вообще не стартует без доступа к systemd. Решение: подменённый `xdg-open`, который запускает прокси-Firefox **вне** песочницы — у него и так нет прямого выхода.
+9. **TUN-режим VPN-клиента обходит kill-switch.** При включённом TUN весь трафик и так уходит в VPN, и правило файрвола его не видит — утечки нет. Но тогда через VPN ходит весь компьютер; режим «только прокси» удобнее.
 
 ## Если Anthropic сменит адреса
 

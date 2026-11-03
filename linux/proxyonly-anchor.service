@@ -1,0 +1,10 @@
+[Unit]
+Description=Держит proxyonly.slice и включает для неё блокировку прямого интернета
+
+[Service]
+Slice=proxyonly.slice
+ExecStart=/usr/bin/sleep infinity
+ExecStartPost=/usr/bin/sudo -n /usr/local/sbin/proxyonly-apply %U
+
+[Install]
+WantedBy=default.target

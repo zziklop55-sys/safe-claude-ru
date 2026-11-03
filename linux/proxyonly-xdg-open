@@ -1,0 +1,8 @@
+#!/bin/sh
+# Внутри proxyonly ссылки открываются в Firefox «только через прокси».
+# Firefox запускается ВНЕ песочницы: snap-Firefox не стартует без доступа к systemd,
+# а прямого выхода у этого профиля и так нет (см. firefox-proxy-user.js).
+exec env DBUS_SESSION_BUS_ADDRESS="${PROXYONLY_REAL_BUS:-$DBUS_SESSION_BUS_ADDRESS}" \
+    systemd-run --user --quiet --collect -E WAYLAND_DISPLAY -E DISPLAY -E XDG_RUNTIME_DIR \
+    -E DBUS_SESSION_BUS_ADDRESS="${PROXYONLY_REAL_BUS:-$DBUS_SESSION_BUS_ADDRESS}" \
+    "$HOME/.local/bin/ffp-open" "$@"

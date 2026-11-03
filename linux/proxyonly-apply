@@ -1,0 +1,22 @@
+#!/bin/sh
+# proxyonly-apply <uid>: программам в proxyonly.slice пользователя разрешён только loopback
+# (локальный прокси 127.0.0.1:10808). Весь прямой интернет для них закрыт.
+set -eu
+uid="${1:?uid}"
+case "$uid" in *[!0-9]*) echo "bad uid" >&2; exit 1 ;; esac
+cg="user.slice/user-$uid.slice/user@$uid.service/proxyonly.slice"
+[ -d "/sys/fs/cgroup/$cg" ] || { echo "нет $cg" >&2; exit 1; }
+nft -f - <<EOF
+table inet proxyonly
+delete table inet proxyonly
+table inet proxyonly {
+  chain out {
+    type filter hook output priority 0; policy accept;
+    socket cgroupv2 level 4 "$cg" ip daddr 127.0.0.0/8 accept
+    socket cgroupv2 level 4 "$cg" ip6 daddr ::1 accept
+    socket cgroupv2 level 4 "$cg" meta l4proto tcp reject with tcp reset
+    socket cgroupv2 level 4 "$cg" reject
+  }
+}
+EOF
+stat -c %i "/sys/fs/cgroup/$cg" > "/run/proxyonly-$uid.inode"

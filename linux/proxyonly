@@ -1,0 +1,50 @@
+#!/bin/sh
+# proxyonly <программа> [аргументы] — запустить программу так, что в интернет она может
+# выйти ТОЛЬКО через прокси Happ (127.0.0.1:10808). Прямой выход заблокирован системой.
+# Пример: proxyonly codex        proxyonly code        proxyonly firefox
+set -eu
+PROXY="http://127.0.0.1:${PROXY_PORT:-10808}"
+uid=$(id -u)
+cg="/sys/fs/cgroup/user.slice/user-$uid.slice/user@$uid.service/proxyonly.slice"
+
+[ $# -gt 0 ] || { echo "Использование: proxyonly <программа> [аргументы]"; exit 1; }
+
+# 1. Группа процессов должна существовать, а правило — быть загружено именно для неё
+if [ ! -d "$cg" ]; then systemctl --user start proxyonly-anchor.service; fi
+if [ "$(cat /run/proxyonly-$uid.inode 2>/dev/null)" != "$(stat -c %i "$cg" 2>/dev/null)" ]; then
+    sudo -n /usr/local/sbin/proxyonly-apply "$uid" || { echo "Не удалось включить блокировку — не запускаю."; exit 1; }
+fi
+
+# 2. Прокси должен быть живой
+curl -s -m 6 -o /dev/null -x "$PROXY" https://ipinfo.io/ip || { echo "Прокси $PROXY не отвечает. Включи Happ."; exit 1; }
+
+# 3. Отфильтрованный D-Bus: без доступа к systemd программа не сможет
+#    перенести себя из proxyonly.slice (так делает Chromium/Electron).
+bus=""
+if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v xdg-dbus-proxy >/dev/null; then
+    bus="${XDG_RUNTIME_DIR:-/tmp}/proxyonly-bus-$$"
+fi
+
+# 4. Запуск внутри изолированной группы
+exec systemd-run --user --scope --quiet --slice=proxyonly.slice --unit="app-proxyonly-$(basename "$1")-$$" \
+    -E HTTPS_PROXY="$PROXY" -E HTTP_PROXY="$PROXY" -E ALL_PROXY="$PROXY" \
+    -E https_proxy="$PROXY" -E http_proxy="$PROXY" -E all_proxy="$PROXY" \
+    -E NO_PROXY="localhost,127.0.0.1,::1" -E no_proxy="localhost,127.0.0.1,::1" \
+    -E BROWSER="$HOME/.local/bin/ffp-open" \
+    -E PATH="$HOME/.local/share/proxyonly/bin:$PATH" \
+    -- sh -c '
+        bus="$1"; shift
+        if [ -n "$bus" ]; then
+            xdg-dbus-proxy "$DBUS_SESSION_BUS_ADDRESS" "$bus" --filter \
+                --talk="org.freedesktop.secrets" --talk="org.freedesktop.portal.*" \
+                --talk="org.freedesktop.Notifications" --talk="org.a11y.Bus" \
+                --talk="org.freedesktop.FileManager1" --talk="org.gtk.vfs.*" \
+                --talk="ca.desrt.dconf" --talk="org.gnome.keyring.*" \
+                --talk="org.freedesktop.impl.portal.*" &
+            dp=$!
+            i=0; while [ ! -S "$bus" ] && [ $i -lt 50 ]; do sleep 0.05; i=$((i+1)); done
+            PROXYONLY_REAL_BUS="$DBUS_SESSION_BUS_ADDRESS" DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" "$@"; rc=$?
+            kill $dp 2>/dev/null; rm -f "$bus"; exit $rc
+        fi
+        exec "$@"
+    ' proxyonly "$bus" "$@"
