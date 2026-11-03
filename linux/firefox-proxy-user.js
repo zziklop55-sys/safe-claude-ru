@@ -10,9 +10,10 @@ user_pref("network.proxy.socks_remote_dns", true);
 user_pref("network.proxy.http", "");
 user_pref("network.proxy.ssl", "");
 user_pref("network.proxy.share_proxy_settings", false);
-user_pref("network.proxy.no_proxies_on", "");
+user_pref("network.proxy.no_proxies_on", "localhost, 127.0.0.1, ::1");
 user_pref("network.proxy.failover_direct", false);
-user_pref("network.proxy.allow_hijacking_localhost", true);
+// localhost — напрямую: иначе ломается вход через OAuth (ответ на localhost уходит в прокси)
+user_pref("network.proxy.allow_hijacking_localhost", false);
 // DNS только через прокси, без DoH в обход
 user_pref("network.trr.mode", 5);
 // WebRTC выключен — иначе может выдать настоящий IP
