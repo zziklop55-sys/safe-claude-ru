@@ -1,0 +1,6 @@
+window { background-color: rgba(32, 31, 35, 0.95); border: 2px solid #5F18B1; border-radius: 10px; font-family: "FantasqueSansM Nerd Font"; font-size: 14px; }
+#input { margin: 8px; padding: 6px 10px; border: none; border-radius: 8px; background: #2B2930; color: #CCC7D4; }
+#inner-box, #outer-box { margin: 4px; }
+#entry { padding: 5px 8px; border-radius: 8px; color: #CCC7D4; }
+#entry:selected { background: #5F18B1; }
+#text:selected { color: #ffffff; }

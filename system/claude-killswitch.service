@@ -1,0 +1,13 @@
+[Unit]
+Description=Block direct (non-proxy) access to Claude/Anthropic
+After=network-pre.target
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/claude-killswitch.nft
+ExecStop=/usr/sbin/nft delete table inet claude_killswitch
+
+[Install]
+WantedBy=multi-user.target
