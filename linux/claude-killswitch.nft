@@ -1,5 +1,6 @@
 # safe-claude-ru: kill-switch для Claude / Anthropic.
-# Прямые подключения к Claude через Wi-Fi (wl*) и кабель (en*) запрещены.
+# Прямые подключения к Claude через Wi-Fi (wl*), кабель (en*/eth*), USB-модем
+# телефона (usb*/rndis*) и мобильный модем (ww*) запрещены.
 # Работать с Claude можно только через прокси/VPN: трафик VPN-клиента идёт
 # на ваш VPN-сервер, а не на адреса ниже, поэтому правило его не задевает.
 #
@@ -15,9 +16,9 @@ table inet claude_killswitch {
   set anthropic6 { type ipv6_addr; flags interval; elements = { 2607:6bc0::/48 } }
   chain out {
     type filter hook output priority 0; policy accept;
-    oifname { "wl*", "en*" } meta l4proto tcp ip daddr @anthropic4 reject with tcp reset
-    oifname { "wl*", "en*" } ip daddr @anthropic4 reject
-    oifname { "wl*", "en*" } meta l4proto tcp ip6 daddr @anthropic6 reject with tcp reset
-    oifname { "wl*", "en*" } ip6 daddr @anthropic6 reject
+    oifname { "wl*", "en*", "eth*", "usb*", "ww*", "rndis*" } meta l4proto tcp ip daddr @anthropic4 reject with tcp reset
+    oifname { "wl*", "en*", "eth*", "usb*", "ww*", "rndis*" } ip daddr @anthropic4 reject
+    oifname { "wl*", "en*", "eth*", "usb*", "ww*", "rndis*" } meta l4proto tcp ip6 daddr @anthropic6 reject with tcp reset
+    oifname { "wl*", "en*", "eth*", "usb*", "ww*", "rndis*" } ip6 daddr @anthropic6 reject
   }
 }
